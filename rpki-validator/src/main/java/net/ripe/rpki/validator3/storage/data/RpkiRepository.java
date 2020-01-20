@@ -33,6 +33,7 @@ import com.google.common.base.Objects;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
+import net.ripe.rpki.validator3.api.util.Dates;
 import net.ripe.rpki.validator3.domain.constraints.ValidLocationURI;
 import net.ripe.rpki.validator3.storage.Binary;
 
@@ -126,7 +127,7 @@ public class RpkiRepository extends Base<RpkiRepository> {
     }
 
     public void setFailed() {
-        setFailed(Instant.now());
+        setFailed(Dates.nowTruncatedMillis());
     }
 
     public void setFailed(Instant lastDownloadedAt) {
@@ -136,7 +137,7 @@ public class RpkiRepository extends Base<RpkiRepository> {
 
 
     public void setDownloaded() {
-        setDownloaded(Instant.now());
+        setDownloaded(Dates.nowTruncatedMillis());
     }
 
     public void setDownloaded(Instant lastDownloadedAt) {

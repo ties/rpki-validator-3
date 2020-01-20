@@ -31,6 +31,7 @@ package net.ripe.rpki.validator3.storage.data;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import net.ripe.rpki.validator3.api.util.Dates;
 
 import java.io.Serializable;
 import java.time.Instant;
@@ -39,10 +40,18 @@ import java.time.Instant;
 @EqualsAndHashCode
 public class Base<T extends Base> implements Serializable {
     private Key id;
-    private Instant createdAt = Instant.now();
+    private Instant createdAt = Dates.nowTruncatedMillis();
     private Instant updatedAt;
 
     public Key key() {
         return id;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = Dates.withTruncatedMillis(createdAt);
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = Dates.withTruncatedMillis(updatedAt);
     }
 }

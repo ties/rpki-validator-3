@@ -34,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.ripe.rpki.validator3.api.Paging;
 import net.ripe.rpki.validator3.api.SearchTerm;
 import net.ripe.rpki.validator3.api.Sorting;
+import net.ripe.rpki.validator3.api.util.Dates;
 import net.ripe.rpki.validator3.storage.IxMap;
 import net.ripe.rpki.validator3.storage.MultIxMap;
 import net.ripe.rpki.validator3.storage.Storage;
@@ -168,7 +169,7 @@ public class ValidationRunsStore implements ValidationRuns {
 
     @Override
     public <T extends ValidationRun> void update(Tx.Write tx, T vr) {
-        vr.setUpdatedAt(Instant.now());
+        vr.setUpdatedAt(Dates.nowTruncatedMillis());
         pickIxMap(vr.getType()).put(tx, vr.key(), vr);
     }
 

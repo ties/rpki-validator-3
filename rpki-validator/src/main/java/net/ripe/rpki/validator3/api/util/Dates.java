@@ -33,6 +33,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 
 public class Dates {
 
@@ -58,5 +59,13 @@ public class Dates {
         } catch(Exception e){
             return Instant.MIN;
         }
+    }
+
+    public static Instant nowTruncatedMillis() {
+        return Instant.now().truncatedTo(ChronoUnit.MILLIS);
+    }
+
+    public static Instant withTruncatedMillis(Instant then) {
+        return then != null ? then.truncatedTo(ChronoUnit.MILLIS) : null;
     }
 }

@@ -33,6 +33,7 @@ import lombok.Getter;
 import lombok.Setter;
 import net.ripe.rpki.commons.validation.ValidationResult;
 import net.ripe.rpki.commons.validation.ValidationStatus;
+import net.ripe.rpki.validator3.api.util.Dates;
 import net.ripe.rpki.validator3.storage.data.Base;
 
 import java.time.Instant;
@@ -52,7 +53,6 @@ public abstract class ValidationRun extends Base<ValidationRun> {
     }
 
     @Getter
-    @Setter
     private Instant completedAt;
 
     @Setter
@@ -72,13 +72,17 @@ public abstract class ValidationRun extends Base<ValidationRun> {
     }
 
     public void setSucceeded() {
-        this.completedAt = Instant.now();
+        this.completedAt = Dates.nowTruncatedMillis();
         this.status = Status.SUCCEEDED.name();
     }
 
     public void setFailed() {
-        this.completedAt = Instant.now();
+        this.completedAt = Dates.nowTruncatedMillis();
         this.status = Status.FAILED.name();
+    }
+
+    public void setCompletedAt(Instant completedAt) {
+        this.completedAt = Dates.withTruncatedMillis(completedAt);
     }
 
     public Status getStatus() {

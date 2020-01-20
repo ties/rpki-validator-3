@@ -47,7 +47,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -82,7 +81,7 @@ public class TrustAnchorStore extends GenericStoreImpl<TrustAnchor> implements T
 
     @Override
     public void update(Tx.Write tx, TrustAnchor trustAnchor) {
-        trustAnchor.setUpdatedAt(Instant.now());
+        trustAnchor.setUpdatedAt(Dates.nowTruncatedMillis());
         ixMap.put(tx, trustAnchor.key(), trustAnchor);
     }
 
