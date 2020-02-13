@@ -45,11 +45,14 @@ import org.springframework.web.client.RestTemplate;
 import java.net.URI;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 @Service
 @Slf4j
 public class RefreshCacheController {
+    private AtomicBoolean lastRefreshSucceeded = new AtomicBoolean(false);
+
     private final RestTemplate restTemplate;
 
     @Value("${rpki.validator.validated.objects.uri}")
@@ -63,10 +66,14 @@ public class RefreshCacheController {
 
     public RefreshCacheController(RestTemplateBuilder restTemplateBuilder) {
         log.info("RefreshCacheController loaded");
-        this.restTemplate = restTemplateBuilder.build();
+        // Set connect and read timeout to be within refresh interval
+        this.restTemplate = restTemplateBuilder.setConnectTimeout(10_000).setReadTimeout(30_000).build();
     }
 
     public void refreshObjectCache() {
+        // Keep the previous status and set current as not succesful (in case it throws).
+        final boolean previousRefreshSucceeded = lastRefreshSucceeded.getAndSet(false);
+
         log.info("fetching validated roa prefixes from {}", validatedObjectsUri);
         ValidatedObjectsResponse response = restTemplate.getForObject(validatedObjectsUri, ValidatedObjectsResponse.class);
 
@@ -74,6 +81,9 @@ public class RefreshCacheController {
         if (!validatedObjects.ready) {
             log.warn("validator {} not ready yet, will retry later", validatedObjectsUri);
             return;
+        } else if (!previousRefreshSucceeded) {
+            // Explicitly indicate at WARN level that the validator was ready, INFO messages may not be logged.
+            log.warn("validator {} ready.", validatedObjectsUri);
         }
 
         List<ValidatedPrefix> validatedPrefixes = validatedObjects.getRoas();
@@ -95,6 +105,8 @@ public class RefreshCacheController {
         cache.update(Stream.concat(roaPrefixes, routerCertificates))
             .ifPresent(updatedSerialNumber ->
                 clients.cacheUpdated(cache.getSessionId(), updatedSerialNumber));
+
+        lastRefreshSucceeded.set(true);
     }
 
     @lombok.Value
