@@ -92,7 +92,7 @@ import static net.ripe.rpki.validator3.storage.data.RpkiRepository.Type.RSYNC;
 public class CertificateTreeValidationService {
     public final long LONG_DURATION_WARNING_MS = 60_000;
 
-    private static final ValidationOptions VALIDATION_OPTIONS = new ValidationOptions();
+    private final ValidationOptions validationOptions;
 
     private final RpkiObjects rpkiObjects;
     private final RpkiRepositories rpkiRepositories;
@@ -108,6 +108,7 @@ public class CertificateTreeValidationService {
     public CertificateTreeValidationService(RpkiObjects rpkiObjects,
                                             RpkiRepositories rpkiRepositories,
                                             Settings settings,
+                                            ValidationOptions validationOptions,
                                             ValidationScheduler validationScheduler,
                                             ValidationRuns validationRuns,
                                             TrustAnchors trustAnchors,
@@ -117,6 +118,7 @@ public class CertificateTreeValidationService {
         this.rpkiObjects = rpkiObjects;
         this.rpkiRepositories = rpkiRepositories;
         this.settings = settings;
+        this.validationOptions = validationOptions;
         this.validationScheduler = validationScheduler;
         this.validationRuns = validationRuns;
         this.trustAnchors = trustAnchors;
@@ -175,7 +177,7 @@ public class CertificateTreeValidationService {
                     trustAnchorCertificate
             );
 
-            trustAnchorCertificate.validate(trustAnchorLocation, context, null, null, VALIDATION_OPTIONS, validationResult);
+            trustAnchorCertificate.validate(trustAnchorLocation, context, null, null, validationOptions, validationResult);
             if (validationResult.hasFailureForCurrentLocation()) {
                 return;
             }
@@ -313,13 +315,13 @@ public class CertificateTreeValidationService {
             }
 
             final X509Crl x509Crl = crl.get();
-            x509Crl.validate(crlUri.toASCIIString(), context, null, VALIDATION_OPTIONS, temporary);
+            x509Crl.validate(crlUri.toASCIIString(), context, null, validationOptions, temporary);
             if (temporary.hasFailureForCurrentLocation()) {
                 return;
             }
 
             temporary.setLocation(new ValidationLocation(manifestUri));
-            manifest.validate(manifestUri.toASCIIString(), context, x509Crl, manifest.getCrlUri(), VALIDATION_OPTIONS, temporary);
+            manifest.validate(manifestUri.toASCIIString(), context, x509Crl, manifest.getCrlUri(), validationOptions, temporary);
             if (temporary.hasFailureForCurrentLocation()) {
                 return;
             }
@@ -377,7 +379,7 @@ public class CertificateTreeValidationService {
             if (maybeCertificateRepositoryObject.isPresent()) {
                 CertificateRepositoryObject certificateRepositoryObject = maybeCertificateRepositoryObject.get();
                 Bench.mark0(trustAnchor.getName(), "certificateRepositoryObject.validate", () ->
-                    certificateRepositoryObject.validate(location.toASCIIString(), context, crl, crlUri, VALIDATION_OPTIONS, temporary));
+                    certificateRepositoryObject.validate(location.toASCIIString(), context, crl, crlUri, validationOptions, temporary));
 
                 if (!temporary.hasFailureForCurrentLocation()) {
                     validatedObjects.add(rpkiObject.key());
