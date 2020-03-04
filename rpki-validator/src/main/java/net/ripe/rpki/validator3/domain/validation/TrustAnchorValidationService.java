@@ -31,6 +31,8 @@ package net.ripe.rpki.validator3.domain.validation;
 
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
+import io.micrometer.core.instrument.*;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.ripe.rpki.commons.crypto.CertificateRepositoryObject;
 import net.ripe.rpki.commons.crypto.util.CertificateRepositoryObjectFactory;
@@ -42,6 +44,7 @@ import net.ripe.rpki.commons.validation.ValidationResult;
 import net.ripe.rpki.commons.validation.ValidationString;
 import net.ripe.rpki.validator3.background.ValidationScheduler;
 import net.ripe.rpki.validator3.domain.ErrorCodes;
+import net.ripe.rpki.validator3.domain.metrics.TrustAnchorMetricsService;
 import net.ripe.rpki.validator3.storage.Storage;
 import net.ripe.rpki.validator3.storage.data.Key;
 import net.ripe.rpki.validator3.storage.data.Ref;
@@ -49,12 +52,15 @@ import net.ripe.rpki.validator3.storage.data.RpkiObject;
 import net.ripe.rpki.validator3.storage.data.TrustAnchor;
 import net.ripe.rpki.validator3.storage.data.validation.TrustAnchorValidationRun;
 import net.ripe.rpki.validator3.storage.data.validation.ValidationCheck;
+import net.ripe.rpki.validator3.storage.data.validation.ValidationRun;
 import net.ripe.rpki.validator3.storage.stores.RpkiRepositories;
 import net.ripe.rpki.validator3.storage.stores.TrustAnchors;
 import net.ripe.rpki.validator3.storage.stores.ValidationRuns;
 import net.ripe.rpki.validator3.util.Rsync;
 import net.ripe.rpki.validator3.util.RsyncFactory;
+import net.ripe.rpki.validator3.util.Time;
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -64,6 +70,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,7 +78,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @Slf4j
 public class TrustAnchorValidationService {
-
     private final TrustAnchors trustAnchors;
     private final RpkiRepositories rpkiRepositories;
     private final ValidationRuns validationRuns;
@@ -81,7 +87,12 @@ public class TrustAnchorValidationService {
     private final Storage storage;
     private final RsyncFactory rsyncFactory;
 
+    private final TrustAnchorMetricsService taMetricsService;
+
+
     private Set<Key> validatedAtLeastOnce = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+
 
     @Autowired
     public TrustAnchorValidationService(
@@ -92,7 +103,8 @@ public class TrustAnchorValidationService {
         @Value("${rpki.validator.rsync.local.storage.directory}") File localRsyncStorageDirectory,
         RpkiRepositoryValidationService repositoryValidationService,
         Storage storage,
-        RsyncFactory rsyncFactory) {
+        RsyncFactory rsyncFactory,
+        TrustAnchorMetricsService trustAnchorMetricsService) {
         this.trustAnchors = trustAnchors;
         this.rpkiRepositories = rpkiRepositories;
         this.validationRuns = validationRuns;
@@ -101,9 +113,11 @@ public class TrustAnchorValidationService {
         this.repositoryValidationService = repositoryValidationService;
         this.storage = storage;
         this.rsyncFactory = rsyncFactory;
+        this.taMetricsService = trustAnchorMetricsService;
     }
 
     public void validate(long trustAnchorId) {
+        final long begin = System.currentTimeMillis();
         Optional<TrustAnchor> maybeTrustAnchor = storage.readTx(tx -> trustAnchors.get(tx, Key.of(trustAnchorId)));
         if (!maybeTrustAnchor.isPresent()) {
             log.error("Trust anchor {} doesn't exist.", trustAnchorId);
@@ -176,6 +190,9 @@ public class TrustAnchorValidationService {
         } finally {
             validatedAtLeastOnce.add(trustAnchor.getId());
             storage.writeTx0(tx -> validationRuns.add(tx, validationRun));
+
+            long delta = System.currentTimeMillis() - begin;
+            taMetricsService.update(trustAnchor, validationRun, delta);
         }
     }
 
