@@ -78,10 +78,12 @@ public class TrustAnchorMetricsService {
             this.rsyncPrefetchUri = trustAnchor.getLocations().get(0);
 
             this.validationRunDuration = Timer.builder("validation_run_duration")
+                    .description("Duration for the validation of the certificates descendante from this trust anchor.")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
             this.validationRunSuccessCount = Counter.builder("validation_run_count")
+                    .description("Number of validation runs for the tree of certificates for this trust anchor.")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .tag("succeeded", "true")
                     .register(registry);
@@ -91,21 +93,25 @@ public class TrustAnchorMetricsService {
                     .register(registry);
 
             Gauge.builder("validation_results", objectCount::get)
+                    .description("Status of the objects under this trust anchor (identical to numbers on front page of web interface)")
                     .tag("status", "total")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
             Gauge.builder("validation_results", errorCount::get)
+                    .description("Status of the objects under this trust anchor (identical to numbers on front page of web interface)")
                     .tag("status", "error")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
             Gauge.builder("validation_results", warningCount::get)
+                    .description("Status of the objects under this trust anchor (identical to numbers on front page of web interface)")
                     .tag("status", "warning")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
             Gauge.builder("last_validation_run", lastCertificateTreeValidationRunTime::get)
+                    .description("Timestamp (in seconds) of the last validation run.")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
