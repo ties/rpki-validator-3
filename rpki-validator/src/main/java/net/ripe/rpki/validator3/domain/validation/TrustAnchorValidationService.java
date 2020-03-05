@@ -117,7 +117,6 @@ public class TrustAnchorValidationService {
     }
 
     public void validate(long trustAnchorId) {
-        final long begin = System.currentTimeMillis();
         Optional<TrustAnchor> maybeTrustAnchor = storage.readTx(tx -> trustAnchors.get(tx, Key.of(trustAnchorId)));
         if (!maybeTrustAnchor.isPresent()) {
             log.error("Trust anchor {} doesn't exist.", trustAnchorId);
@@ -190,9 +189,6 @@ public class TrustAnchorValidationService {
         } finally {
             validatedAtLeastOnce.add(trustAnchor.getId());
             storage.writeTx0(tx -> validationRuns.add(tx, validationRun));
-
-            long delta = System.currentTimeMillis() - begin;
-            taMetricsService.update(trustAnchor, validationRun, delta);
         }
     }
 
