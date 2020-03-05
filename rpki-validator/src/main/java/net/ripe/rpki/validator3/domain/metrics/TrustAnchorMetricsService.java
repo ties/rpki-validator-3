@@ -60,7 +60,7 @@ public class TrustAnchorMetricsService {
         private final AtomicInteger errorCount;
         private final AtomicInteger objectCount;
 
-        private final AtomicLong lastCertificateTreeValidationRunTime;
+        private final AtomicLong lastSuccessfulValidationRunTime;
         private Key lastCertificateTreeValidationRunKey = Key.of(-1);
 
         private final Counter validationRunFailedCount;
@@ -73,7 +73,7 @@ public class TrustAnchorMetricsService {
             this.errorCount = new AtomicInteger(0);
             this.warningCount = new AtomicInteger(0);
 
-            this.lastCertificateTreeValidationRunTime = new AtomicLong(0);
+            this.lastSuccessfulValidationRunTime = new AtomicLong(0);
 
             this.rsyncPrefetchUri = trustAnchor.getLocations().get(0);
 
@@ -110,8 +110,8 @@ public class TrustAnchorMetricsService {
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
-            Gauge.builder("last_validation_run", lastCertificateTreeValidationRunTime::get)
-                    .description("Timestamp (in seconds) of the last validation run.")
+            Gauge.builder("last_validation_run", lastSuccessfulValidationRunTime::get)
+                    .description("Timestamp (in seconds) of the last successful validation run.")
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
@@ -125,13 +125,12 @@ public class TrustAnchorMetricsService {
 
                 if (vr.isSucceeded()) {
                     validationRunSuccessCount.increment();
+                    lastSuccessfulValidationRunTime.set(vr.getCompletedAt().toEpochMilli()/1000);
                 } else {
                     validationRunFailedCount.increment();
                 }
 
                 validationRunDuration.record(durationMs, TimeUnit.MILLISECONDS);
-
-                lastCertificateTreeValidationRunTime.set(vr.getCompletedAt().toEpochMilli()/1000);
                 errorCount.set(vr.countChecks(ValidationCheck.Status.ERROR));
 
                 storage.readTx0(tx -> {
