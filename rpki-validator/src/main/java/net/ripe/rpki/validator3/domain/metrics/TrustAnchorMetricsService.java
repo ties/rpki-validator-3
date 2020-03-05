@@ -8,7 +8,7 @@ import net.ripe.rpki.validator3.storage.Storage;
 import net.ripe.rpki.validator3.storage.data.Key;
 import net.ripe.rpki.validator3.storage.data.TrustAnchor;
 import net.ripe.rpki.validator3.storage.data.validation.ValidationCheck;
-import net.ripe.rpki.validator3.storage.data.validation.ValidationRun;
+import net.ripe.rpki.validator3.storage.data.validation.CertificateTreeValidationRun;
 import net.ripe.rpki.validator3.storage.stores.ValidationRuns;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -34,40 +34,46 @@ public class TrustAnchorMetricsService {
     /**
      * Creating multiple counters for the same trust anchor has no negative side-effects.
      */
-    private ConcurrentHashMap<String, ValidationEntry> counters = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, CertificateTreeValidationMetrics> cetrificateTreeValidationMetrics = new ConcurrentHashMap<>();
 
-    public void update(TrustAnchor ta, ValidationRun vr, long durationMs) {
+    public void update(TrustAnchor ta, CertificateTreeValidationRun vr, long durationMs) {
         final String uri = ta.getLocations().size() > 0 ? ta.getLocations().get(0) : null;
-        assert uri != null;
+        if (uri == null) {
+            log.error("Trust anchor {} does not have a location.", ta.getSubjectPublicKeyInfo());
+            return;
+        }
 
-        if (counters.containsKey(uri)) {
-            counters.get(uri).update(vr, durationMs);
+        if (cetrificateTreeValidationMetrics.containsKey(uri)) {
+            cetrificateTreeValidationMetrics.get(uri).update(vr, durationMs);
         } else {
-            counters.put(uri, new ValidationEntry(ta, vr, durationMs));
+            final CertificateTreeValidationMetrics oldMetrics = cetrificateTreeValidationMetrics.putIfAbsent(uri, new CertificateTreeValidationMetrics(ta, vr, durationMs));
+            if (oldMetrics != null) {
+                oldMetrics.update(vr, durationMs);
+            }
         }
     }
 
-    private class ValidationEntry {
+    private class CertificateTreeValidationMetrics {
         private final String rsyncPrefetchUri;
 
         private final AtomicInteger warningCount;
         private final AtomicInteger errorCount;
         private final AtomicInteger objectCount;
 
-        private final AtomicLong lastValidationRunTime;
-        private Key lastValidationRunKey = Key.of(-1);
+        private final AtomicLong lastCertificateTreeValidationRunTime;
+        private Key lastCertificateTreeValidationRunKey = Key.of(-1);
 
         private final Counter validationRunFailedCount;
         private final Counter validationRunSuccessCount;
 
         private final Timer validationRunDuration;
 
-        public ValidationEntry(TrustAnchor trustAnchor, ValidationRun vr, long durationMs) {
+        public CertificateTreeValidationMetrics(TrustAnchor trustAnchor, CertificateTreeValidationRun vr, long durationMs) {
             this.objectCount = new AtomicInteger(0);
             this.errorCount = new AtomicInteger(0);
             this.warningCount = new AtomicInteger(0);
 
-            this.lastValidationRunTime = new AtomicLong(0);
+            this.lastCertificateTreeValidationRunTime = new AtomicLong(0);
 
             this.rsyncPrefetchUri = trustAnchor.getLocations().get(0);
 
@@ -99,17 +105,17 @@ public class TrustAnchorMetricsService {
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
-            Gauge.builder("last_validation_run", lastValidationRunTime::get)
+            Gauge.builder("last_validation_run", lastCertificateTreeValidationRunTime::get)
                     .tag("trust_anchor", rsyncPrefetchUri)
                     .register(registry);
 
             this.update(vr, durationMs);
         }
 
-        public void update(ValidationRun vr, long durationMs) {
+        public void update(CertificateTreeValidationRun vr, long durationMs) {
             final Key currentRunKey = vr.key();
-            if (!lastValidationRunKey.equals(currentRunKey)) {
-                lastValidationRunKey = currentRunKey;
+            if (!lastCertificateTreeValidationRunKey.equals(currentRunKey)) {
+                lastCertificateTreeValidationRunKey = currentRunKey;
 
                 if (vr.isSucceeded()) {
                     validationRunSuccessCount.increment();
@@ -119,7 +125,7 @@ public class TrustAnchorMetricsService {
 
                 validationRunDuration.record(durationMs, TimeUnit.MILLISECONDS);
 
-                lastValidationRunTime.set(vr.getCompletedAt().toEpochMilli()/1000);
+                lastCertificateTreeValidationRunTime.set(vr.getCompletedAt().toEpochMilli()/1000);
                 errorCount.set(vr.countChecks(ValidationCheck.Status.ERROR));
 
                 storage.readTx0(tx -> {
