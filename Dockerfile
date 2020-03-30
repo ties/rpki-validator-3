@@ -3,7 +3,7 @@
 # The hash ensures that args change even if file name is equal, otherwise docker
 # would cach an image when GENERIC_BUILD_ARCHIVE changes even though the file
 # changes.
-FROM adoptopenjdk/openjdk11:alpine as intermediate
+FROM adoptopenjdk:11-jre-hotspot as intermediate
 ARG GENERIC_BUILD_ARCHIVE
 ARG GENERIC_BUILD_SHA256
 
@@ -18,7 +18,7 @@ RUN export TMPDIR=$(mktemp -d) \
     && mv ${TMPDIR}/*/* /opt/rpki-validator-3
 
 # Second build step: Move files into place
-FROM adoptopenjdk/openjdk11:alpine
+FROM adoptopenjdk:11-jre-hotspot
 # Keep the file name and sha256 in the metadata
 ARG GENERIC_BUILD_ARCHIVE
 ARG GENERIC_BUILD_SHA256
@@ -38,8 +38,8 @@ COPY --from=intermediate /opt/rpki-validator-3 /opt/rpki-validator-3
 WORKDIR /opt/rpki-validator-3
 
 RUN apt-get update && apt-get install --yes rsync \
-    # Ash instead of bash
-    && sed -i 's/env bash/env ash/g'  /opt/rpki-validator-3/rpki-validator-3.sh \
+    # Clean apt cache
+    && rm -rf /var/lib/apt/lists/* \
     # UseContainerSupport: important
     && sed -i '/MEM_OPTIONS=/c\MEM_OPTIONS="-Xms$JVM_XMS -Xmx$JVM_XMX -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport"' /opt/rpki-validator-3/rpki-validator-3.sh  \
     # Move about config and set defaults (creates /config)
