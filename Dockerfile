@@ -37,7 +37,7 @@ ENV CONFIG_DIR="/config"
 COPY --from=intermediate /opt/rpki-validator-3 /opt/rpki-validator-3
 WORKDIR /opt/rpki-validator-3
 
-RUN apt-get update && apt-get install --yes rsync \
+RUN apt-get update && apt-get install --no-install-recommends --yes rsync \
     # Clean apt cache
     && rm -rf /var/lib/apt/lists/* \
     # UseContainerSupport: important
