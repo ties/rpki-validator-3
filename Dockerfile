@@ -3,14 +3,13 @@
 # The hash ensures that args change even if file name is equal, otherwise docker
 # would cach an image when GENERIC_BUILD_ARCHIVE changes even though the file
 # changes.
-FROM openjdk:8-jre-alpine as intermediate
+FROM adoptopenjdk/openjdk11:alpine as intermediate
 ARG GENERIC_BUILD_ARCHIVE
 ARG GENERIC_BUILD_SHA256
 
 COPY ${GENERIC_BUILD_ARCHIVE} /tmp/
 
-RUN apk --no-cache add coreutils \
-    && export TMPDIR=$(mktemp -d) \
+RUN export TMPDIR=$(mktemp -d) \
     && mkdir -p /opt/rpki-validator-3 \
     && if [ -z "$GENERIC_BUILD_SHA256" ]; then echo "Supply GENERIC_BUILD_SHA256"; exit 2; fi; \
        echo -n "${GENERIC_BUILD_SHA256} /tmp/$(basename ${GENERIC_BUILD_ARCHIVE})" | sha256sum --check \ 
@@ -19,7 +18,7 @@ RUN apk --no-cache add coreutils \
     && mv ${TMPDIR}/*/* /opt/rpki-validator-3
 
 # Second build step: Move files into place
-FROM openjdk:8-jre-alpine
+FROM adoptopenjdk/openjdk11:alpine
 # Keep the file name and sha256 in the metadata
 ARG GENERIC_BUILD_ARCHIVE
 ARG GENERIC_BUILD_SHA256
@@ -38,7 +37,7 @@ ENV CONFIG_DIR="/config"
 COPY --from=intermediate /opt/rpki-validator-3 /opt/rpki-validator-3
 WORKDIR /opt/rpki-validator-3
 
-RUN apk --no-cache add rsync \
+RUN apt-get update && apt-get install --yes rsync \
     # Ash instead of bash
     && sed -i 's/env bash/env ash/g'  /opt/rpki-validator-3/rpki-validator-3.sh \
     # UseContainerSupport: important
@@ -54,7 +53,7 @@ RUN apk --no-cache add rsync \
     && sed -i 's:rpki\.validator\.preconfigured\.trust\.anchors\.directory=./preconfigured-tals:rpki.validator.preconfigured.trust.anchors.directory=/config/preconfigured-tals:g' ${CONFIG_DIR}/application.properties \
     # Store data in /data
     && sed -i 's:rpki\.validator\.data\.path=.:rpki.validator.data.path=/data:g' ${CONFIG_DIR}/application.properties \
-    && adduser -H -h /opt/rpki-validator-3 -D rpki \
+    && useradd -M -d /opt/rpki-validator-3 rpki \
     && chown -R rpki:rpki /opt/rpki-validator-3 /config /data
 
 # Do not run as root
