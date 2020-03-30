@@ -96,6 +96,7 @@ package:
 
 docker:
   stage: deploy
+  image: debian:buster-backports
   before_script:
     - apt-get update && apt-get install docker.io openssh-client rsync --yes
   script:
