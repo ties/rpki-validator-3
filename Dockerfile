@@ -43,15 +43,23 @@ RUN apk --no-cache add rsync \
     && sed -i 's/env bash/env ash/g'  /opt/rpki-validator-3/rpki-validator-3.sh \
     # UseContainerSupport: important
     && sed -i '/MEM_OPTIONS=/c\MEM_OPTIONS="-Xms$JVM_XMS -Xmx$JVM_XMX -XX:+ExitOnOutOfMemoryError -XX:+UseContainerSupport"' /opt/rpki-validator-3/rpki-validator-3.sh  \
-    # Move about config and set defaults
+    # Move about config and set defaults (creates /config)
     && mv /opt/rpki-validator-3/conf /config \
     && mv /opt/rpki-validator-3/preconfigured-tals/ /config \
+    # Create data dir
+    && mkdir /data \
     # Listen to 0.0.0.0 instead of just localhost
     && sed -i 's/server.address=localhost/server.address=0.0.0.0/g' ${CONFIG_DIR}/application.properties \
     # Load preconfigured-tals from /config
     && sed -i 's:rpki\.validator\.preconfigured\.trust\.anchors\.directory=./preconfigured-tals:rpki.validator.preconfigured.trust.anchors.directory=/config/preconfigured-tals:g' ${CONFIG_DIR}/application.properties \
     # Store data in /data
-    && sed -i 's:rpki\.validator\.data\.path=.:rpki.validator.data.path=/data:g' ${CONFIG_DIR}/application.properties
+    && sed -i 's:rpki\.validator\.data\.path=.:rpki.validator.data.path=/data:g' ${CONFIG_DIR}/application.properties \
+    && adduser -H -h /opt/rpki-validator-3 -D rpki \
+    && chown -R rpki:rpki /opt/rpki-validator-3 /config /data
+
+# Do not run as root
+USER rpki
 
 CMD ["/opt/rpki-validator-3/rpki-validator-3.sh"]
+# Volumes are initialized with the files in them from container build time
 VOLUME /config /data
