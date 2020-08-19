@@ -66,6 +66,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -143,7 +144,7 @@ public class RrdpServiceImpl implements RrdpService {
                 // The notification contains updates that we do not have locally
                 try {
                     List<DeltaInfo> orderedDeltas = verifyAndOrderDeltaSerials(notification, rpkiRepository);
-                    rrdpProcessingPool.submit(() -> orderedDeltas
+                    rrdpProcessingPool.invoke(ForkJoinTask.adapt(() -> orderedDeltas
                             .stream()
                             .map(di -> readDelta(notification, di))
                             .forEachOrdered(d -> storage.writeTx0(tx -> {
@@ -151,7 +152,7 @@ public class RrdpServiceImpl implements RrdpService {
                                 storeDelta(tx, d, validationRun, rpkiRepository, changedObjects);
                                 tx.afterCommit(() -> rpkiRepository.setRrdpSerial(rpkiRepository.getRrdpSerial().add(BigInteger.ONE)));
                             }))
-                    ).join();
+                    ));
                 } catch (RrdpException e) {
                     log.info("Processing deltas failed {}, falling back to snapshot processing.", e.getMessage());
                     rrdpMetrics.update(rpkiRepository.getRrdpNotifyUri(), ErrorCodes.RRDP_FETCH_DELTAS);
@@ -179,7 +180,7 @@ public class RrdpServiceImpl implements RrdpService {
     }
 
     private void processSnapshot(RpkiRepository rpkiRepository, RpkiRepositoryValidationRun validationRun, Notification notification, AtomicBoolean changedObjects) {
-        rrdpProcessingPool.submit(() -> {
+        rrdpProcessingPool.invoke(ForkJoinTask.adapt(() -> {
             rrdpClient.processUsingTemporaryFile(notification.snapshotUri, Hashing.sha256(), (snapshotPath, snapshotHash) -> {
                 if (!Arrays.equals(Hex.parse(notification.snapshotHash), snapshotHash.asBytes())) {
                     throw new RrdpException(ErrorCodes.RRDP_WRONG_SNAPSHOT_HASH, "Hash of the snapshot file " +
@@ -205,7 +206,7 @@ public class RrdpServiceImpl implements RrdpService {
 
                 return null;
             });
-        }).join();
+        }));
     }
 
     private int processDownloadedSnapshot(RpkiRepository rpkiRepository, RpkiRepositoryValidationRun validationRun, Notification notification, Path snapshotPath, Predicate<RepositoryObjectType> typePredicate) {
