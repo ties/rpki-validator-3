@@ -33,6 +33,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.api.Response;
+import org.eclipse.jetty.client.api.Result;
 import org.eclipse.jetty.client.util.InputStreamResponseListener;
 
 import java.io.IOException;
@@ -57,37 +58,25 @@ public class HttpStreaming {
         Request request = requestF.get();
         request.send(listener);
 
-        Response response = null;
         try {
-            response = listener.get(30, TimeUnit.SECONDS);
+            final Result response = listener.await(30, TimeUnit.SECONDS);
 
-            if (response.getStatus() != 200) {
-                if (response.getStatus() == 304) {
+            if (response.getResponse().getStatus() != 200) {
+                if (response.getResponse().getStatus() == 304) {
                     final NotModifiedException error = new NotModifiedException(request.getURI().toString());
-                    response.abort(error);
                     throw error;
                 } else {
-                    final HttpStatusException error = new HttpStatusException(response, request);
-                    response.abort(error);
+                    final HttpStatusException error = new HttpStatusException(response.getResponse(), request);
                     throw error;
                 }
             }
 
-            long lastModified = response.getHeaders().getDateField("Last-Modified");
+            long lastModified = response.getResponse().getHeaders().getDateField("Last-Modified");
             try (InputStream inputStream = listener.getInputStream()) {
                 return reader.apply(inputStream, lastModified);
             }
         } catch (IOException | InterruptedException | TimeoutException e) {
             final HttpFailureException error = new HttpFailureException("failed reading response stream for " + request.getURI() + ": " + e, e);
-            if (response != null) {
-                response.abort(error);
-            }
-            throw error;
-        } catch (ExecutionException e) {
-            final HttpFailureException error = new HttpFailureException("failed reading response stream for " + request.getURI() + ": " + e.getCause(), e.getCause());
-            if (response != null) {
-                response.abort(error);
-            }
             throw error;
         }
     }
