@@ -361,9 +361,7 @@ public class RpkiRepositoryValidationService {
         AtomicInteger pendingObjectsBytes = new AtomicInteger(0);
         List<Pair<String, byte[]>> pendingObjects = new ArrayList<>(1000);
         Runnable commitPendingObjects = () -> {
-            storage.writeTx0((tx) -> counter.addAndGet(
-                    storePendingObjects(tx, validationRun, pendingObjects))
-            );
+            storePendingObjects(validationRun, pendingObjects, counter);
             pendingObjects.clear();
             pendingObjectsBytes.set(0);
         };
@@ -429,15 +427,17 @@ public class RpkiRepositoryValidationService {
         commitPendingObjects.run();
     }
 
-    private int storePendingObjects(Tx.Write tx, RsyncRepositoryValidationRun validationRun, List<Pair<String,byte[]>> pendingObjects) {
-        AtomicInteger counter = new AtomicInteger();
-
+    private int storePendingObjects(
+            RsyncRepositoryValidationRun validationRun,
+            List<Pair<String,byte[]>> pendingObjects,
+            AtomicInteger counter) {
         // Parsing RPKI objects is CPU bound, so do this with any available threads
-        pendingObjects.parallelStream().map(pendingObject ->
+        // But do not keep the Xodus transaction while doing parallel work
+        final List<Either<ValidationResult, Pair<String, RpkiObject>>> parsedObjects = pendingObjects.parallelStream().map(pendingObject ->
                 RpkiObjectUtils.createRpkiObject(pendingObject.getLeft(), pendingObject.getRight())
-        ).collect(Collectors.toList()).forEach((maybeRpkiObject) ->
-            storeObject(tx, validationRun, maybeRpkiObject, counter)
-        );
+        ).collect(Collectors.toList());
+
+        storage.writeTx0(tx -> parsedObjects.forEach(obj -> storeObject(tx, validationRun, obj, counter)));
 
         return counter.get();
     }
